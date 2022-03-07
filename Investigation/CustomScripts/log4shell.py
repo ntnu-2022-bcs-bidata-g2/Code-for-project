@@ -7,7 +7,7 @@
 # Requires a LDAP server or an OOB detection tool to verify
 # that the exploit is working
 
-# Usage: ./log4shell.py [ldap_url]
+# Usage: ./log4shell.py ldap_url
 
 import requests
 import argparse
