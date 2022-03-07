@@ -3,11 +3,13 @@
 # CVE-2021-44228
 # Sends GET request to target and tries to exploit Log4Shell
 # by including LDAP lookup in User-Agent header
+# Uses 'http://rsxc.no:20024' as vulnerable target by default,
+# although this can be changed
 
 # Requires a LDAP server or an OOB detection tool to verify
 # that the exploit is working
 
-# Usage: ./log4shell.py ldap_url
+# Usage: Run './log4shell.py --help' for help
 
 import requests
 import argparse
