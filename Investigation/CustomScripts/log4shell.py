@@ -6,7 +6,7 @@
 # Uses 'http://rsxc.no:20024' as vulnerable target by default,
 # although this can be changed
 
-# Requires a LDAP server or an OOB detection tool to verify
+# Requires an OOB detection tool to verify
 # that the exploit is working
 
 # Run './log4shell.py --help' for help
