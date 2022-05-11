@@ -1,0 +1,167 @@
+heat_template_version: 2013-05-23
+
+description: >
+  HOT template to create a new network plus a router to the public
+  network, and deploying an ubuntu docker server and an "attack" server.
+
+parameters:
+  key_name:
+    type: string
+    description: Name of keypair to assign to servers
+    default: Desktop
+
+    
+resources:
+  private_net:
+    type: OS::Neutron::Net
+
+  private_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network_id: { get_resource: private_net }
+      cidr: 172.16.16.0/24
+      gateway_ip: 172.16.16.1
+      allocation_pools:
+        - start: 172.16.16.5
+          end: 172.16.16.200
+
+  router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info:
+        network: ntnu-internal
+
+  router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: router }
+      subnet_id: { get_resource: private_subnet }
+
+
+  docker_server:
+    type: OS::Nova::Server
+    properties:
+      name: docker-server
+      image: Ubuntu Server 20.04 LTS (Focal Fossa) amd64
+      flavor: m1.large
+      key_name: { get_param: key_name }
+
+      networks:
+        - port: { get_resource: docker_server_port }
+      user_data: 
+        str_replace:
+          template: |
+            #!/usr/bin/env bash
+            echo "Removing docker.io stuff"
+            apt-get remove docker docker-engine docker.io containerd runc
+                
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+
+            echo "$root-password" | passwd --stdin root
+            echo "$user-password" | passwd --stdin ubuntu
+            su - ubuntu -c 'echo "$ruben-key" >> /home/ubuntu/.ssh/authorized_keys'
+            su - ubuntu -c 'echo "$even-key" >> /home/ubuntu/.ssh/authorized_keys'
+
+          params:
+            $root-password: "WFs9T9JGG3g76CHR"
+            $user-password: "F7d28@YHSBscunL4"
+            $ruben-key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC0AOzShhXAS1qIy1HPXRaBtG25yBrKX4+klZq0EQb+mzeLtoEAtLzH8mKwBTOodcl1jjGH0hNqTdRzysqJXdvMbTluT3BXQy730YnJ8cA7Fur+Xry9CZCIYNWYsNHgxOrmruYMkJ9jmR8C3kRMdPgR/xownpfFULd6T2WHUegnipDzw3EPl00ilZGWhrVR1T6B2emfsCAAl1g6mVc/YANM3OYv/EzrzS1CDU0w4RxFdU6u37lPhF0E1VQEhGEk5OtMQiWH+o2uFv8lv/jkg9NJBEo/X91D0vB73FyEYKseZ6R24tXNPDRCrY4qTAlGRImIM4wmER5UEYgJ0+3kV136n0eue+Uu+6g0inVkr5F5LssbGkAOoxMD1fAhjL3tzwMly18GA5H1JD/BkELgKj2AOR1Nn3j8nCYQJqMSsAoMroe35ldJHNyF004WABFT1eeSOtDtFzWvKhs/Si19ceNK55DsQdsb1/VaYbZX5SXGiznaxY1voO8yjgs+piOeh+E="
+            $even-key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC/1YOscZI7CO23OFfYt78Kyn5Q4TAA1IGudaPhQxk2qINf3wkCKawKf4MBIK/z4SbhbND3rWxkhF5qkToWoNXJOfTGvJfeGJw7TtKupM06O9/nhlhm6RJRkYMmfTNJZyYvuQwvENTF5+AFoHChn66YUN2gNIFx4V9M598BLR+ajmB5PSIqhobIPSRxtQ4vnCqdFcGzTxiTSlOAlLIep7wiwbUi4AlPJgesrLxCBAMBZegStay3GS1d3YMtwcEMHYju/J8DDoXEb/Z6TVFb+YYPPUtWQFH6Pf73Kn14bn8k6YR1aayjC16mob9C/z72PZE0OJhV0AwrPD4Z7tyg5DIZ"
+
+  attacker_server:
+    type: OS::Nova::Server
+    properties:
+      name: attacker_server
+      image: Kali Linux 2021.2 xfce amd64
+      flavor: m1.small
+      key_name: { get_param: key_name }
+      networks:
+        - port: { get_resource: attacker_server_port }
+      user_data: 
+        str_replace:
+          template: |
+            #!/usr/bin/env bash
+            echo "Removing docker.io stuff"
+            apt-get remove docker docker-engine docker.io containerd runc
+                
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+
+
+            (umask 077 && echo 'root:$attacker-root-password' >> "/root/tmp" && echo 'kali:$attacker-user-password' >> "/root/tmp" && chpasswd < /root/tmp && rm /root/tmp && umask 022)
+            
+            su - kali -c "vncpasswd -f <<< $attacker-vnc-password > '/home/kali/.vnc/passwd'"
+            su - kali -c 'echo "$ruben-key" >> /home/kali/.ssh/authorized_keys'
+            su - kali -c 'echo "$even-key" >> /home/kali/.ssh/authorized_keys'
+            apt-get install golang-1.17
+            /usr/lib/go-1.17/bin/go install -v github.com/projectdiscovery/interactsh/cmd/interactsh-client@latest
+
+          params:
+            $attacker-vnc-password: "4ixIbi7*r4^%NW1f"
+            $attacker-root-password: "1L!6sib^Ko8$jVl8"
+            $attacker-user-password: "F5q5k1yB3yG9EZRk"
+            $ruben-key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC0AOzShhXAS1qIy1HPXRaBtG25yBrKX4+klZq0EQb+mzeLtoEAtLzH8mKwBTOodcl1jjGH0hNqTdRzysqJXdvMbTluT3BXQy730YnJ8cA7Fur+Xry9CZCIYNWYsNHgxOrmruYMkJ9jmR8C3kRMdPgR/xownpfFULd6T2WHUegnipDzw3EPl00ilZGWhrVR1T6B2emfsCAAl1g6mVc/YANM3OYv/EzrzS1CDU0w4RxFdU6u37lPhF0E1VQEhGEk5OtMQiWH+o2uFv8lv/jkg9NJBEo/X91D0vB73FyEYKseZ6R24tXNPDRCrY4qTAlGRImIM4wmER5UEYgJ0+3kV136n0eue+Uu+6g0inVkr5F5LssbGkAOoxMD1fAhjL3tzwMly18GA5H1JD/BkELgKj2AOR1Nn3j8nCYQJqMSsAoMroe35ldJHNyF004WABFT1eeSOtDtFzWvKhs/Si19ceNK55DsQdsb1/VaYbZX5SXGiznaxY1voO8yjgs+piOeh+E="
+            $even-key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC/1YOscZI7CO23OFfYt78Kyn5Q4TAA1IGudaPhQxk2qINf3wkCKawKf4MBIK/z4SbhbND3rWxkhF5qkToWoNXJOfTGvJfeGJw7TtKupM06O9/nhlhm6RJRkYMmfTNJZyYvuQwvENTF5+AFoHChn66YUN2gNIFx4V9M598BLR+ajmB5PSIqhobIPSRxtQ4vnCqdFcGzTxiTSlOAlLIep7wiwbUi4AlPJgesrLxCBAMBZegStay3GS1d3YMtwcEMHYju/J8DDoXEb/Z6TVFb+YYPPUtWQFH6Pf73Kn14bn8k6YR1aayjC16mob9C/z72PZE0OJhV0AwrPD4Z7tyg5DIZ"
+
+  docker_server_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: private_net }
+      security_groups:
+        - { get_resource: server_security_group }
+        - { get_resource: docker_server_security_group}
+      fixed_ips: [{
+        subnet_id: { get_resource: private_subnet },
+        ip_address: "172.16.16.11"
+        }]
+
+  attacker_server_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: private_net }
+      security_groups:
+        - { get_resource: server_security_group}
+      fixed_ips: [{
+        subnet_id: { get_resource: private_subnet },
+        ip_address: "172.16.16.12"
+        }]
+
+  attacker_server_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: ntnu-internal
+      port_id: { get_resource: attacker_server_port }
+
+  server_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: Add security group rules for server
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: icmp
+        - remote_ip_prefix: 0.0.0.0/0
+          protocol: tcp
+          port_range_min: 22
+          port_range_max: 22
+
+  docker_server_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: Open all ports locally
+      rules:
+        - remote_ip_prefix: 172.16.16.0/24
+          protocol: tcp
+          port_range_min: 1
+          port_range_max: 65535
+
+outputs:
+  docker_server_private_ip:
+    description: IP address of server in private network
+    value: { get_attr: [ docker_server, first_address] }
+  attacker_server_private_ip:
+    description: IP address of server in private network
+    value: { get_attr: [ attacker_server, first_address] }
+  attacker_server_public_ip:
+    description: Floating IP address of server in public network
+    value: { get_attr: [ attacker_server_floating_ip, floating_ip_address ] }
